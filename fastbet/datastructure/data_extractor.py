@@ -75,11 +75,16 @@ def data_aggregator(
         )
 
     # Connect to database.
+    #start_time = time.time()
     mongo_init(db_hosts=db_hosts, config=config, db_host=db_host)
+    #con_time = time.time()
+    #print("--- connection_time: %s seconds ---" % (con_time - start_time))
 
     # Extract games.
     games = GameFeatures.get_all_games(limit=limit)
     games = pd.DataFrame(games.as_pymongo())
+    #game_time = time.time()
+    #print("--- games_time: %s seconds ---" % (game_time - con_time))
 
     # Filter Data.
     games = games[
@@ -106,6 +111,9 @@ def data_aggregator(
         axis="columns",
         result_type="expand",
     )
+    #o1x2_time = time.time()
+    #print("--- 1x2_time: %s seconds ---" % (o1x2_time - game_time))
+    
 
     # Add Asian handicap odds.
     games[["preGameAhHome", "preGameAhAway", "LineId"]] = games.apply(
@@ -117,6 +125,8 @@ def data_aggregator(
         axis="columns",
         result_type="expand",
     )
+    #ah_time = time.time()
+    #print("--- ah_time: %s seconds ---" % (ah_time - o1x2_time))
 
     # Add Home team lineup features.
     games[
@@ -135,6 +145,8 @@ def data_aggregator(
         axis="columns",
         result_type="expand",
     )
+    #lup_time = time.time()
+    #print("--- lup_time: %s seconds ---" % (lup_time - ah_time))
 
     # Add away team lineup features.
     games[
@@ -153,6 +165,8 @@ def data_aggregator(
         axis="columns",
         result_type="expand",
     )
+    #lup_feats = time.time()
+    #print("--- lup_feats: %s seconds ---" % (lup_feats - lup_time))
 
     # Map results {homewin -> 0 , draw -> 1, awaywin -> 2}.
     games["tgt_outcome"] = games["tgt_outcome"].map({1.0: 0.0, 0.0: 2.0, 0.5: 1.0})
