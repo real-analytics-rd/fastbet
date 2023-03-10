@@ -51,7 +51,7 @@ opportunities are available.
 
 ``` python
 fixtures = data_aggregator(
-    db_hosts=DB_HOSTS, config=CONFIG, db_host="public_atlas", limit=3
+    db_hosts=DB_HOSTS, config=CONFIG, db_host="public_atlas", limit=10
 )
 ```
 
@@ -78,9 +78,9 @@ while not done and i < max_steps_limit:
     obs, reward, done, info = env.step(env.action_space.sample())
     # Increment counter.
     i = i + 1
-
-HTML('<img src="./images/img_1.gif">')
 ```
+
+<img src="./images/img_1.gif">
 
 ### Playing Medium Stake on Home Team Win (1X2)
 
@@ -97,6 +97,6 @@ while not done and i < max_steps_limit:
     obs, reward, done, info = env.step(2)
     # Increment counter.
     i = i + 1
-
-HTML('<img src="./images/img_2.gif">')
 ```
+
+<img src="./images/img_2.gif">

@@ -8,15 +8,16 @@ import datetime
 import json
 from typing import Tuple
 
-import pandas as pd
 import numpy as np
+import pandas as pd
+from tqdm.auto import tqdm
 
 from ..config.mongo import mongo_init
 from .game_features import *
 from .odds import *
-from .team_lineup import * 
+from .team_lineup import *
 
-# %% ../../nbs/dataStrcuture/04_data_extractor.ipynb 6
+# %% ../../nbs/dataStrcuture/04_data_extractor.ipynb 7
 def data_aggregator(
     db_hosts: dict,  # All DB hosts.
     config: dict,  # Database config.
@@ -49,7 +50,7 @@ def data_aggregator(
 
         # Lineup features.
         team_features = TeamSheet.get_latest(ra_team_id=team_id, date=game_date)
-        
+
         # Team name.
         team_name = team_features.name
         # Players and positions.
@@ -57,34 +58,32 @@ def data_aggregator(
             {player.name: player.position for player in team_features.starting}
         )
         # Players ids.
-        team_lienups_ids = list(player.opta_id for player in team_features.starting)
+        team_lienups_ids = [player.opta_id for player in team_features.starting]
         # Players slots.
-        team_lienups_slots = list(player.slot for player in team_features.starting)
+        team_lienups_slots = [player.slot for player in team_features.starting]
         # Formation name.
         formation_name = team_features.starting.first().formation
         # Lineup timestamp.
         lineup_time_stamp = team_features.received_at
 
-        return (
-            team_name,
-            team_lineups_names,
-            team_lienups_ids,
-            team_lienups_slots,
-            formation_name,
-            lineup_time_stamp,
+        return pd.DataFrame(
+            {
+                "team_name": team_name,
+                "team_lineups_names": [team_lineups_names],
+                "team_lienups_ids": [team_lienups_ids],
+                "team_lienups_slots": [team_lienups_slots],
+                "formation_name": formation_name,
+                "lineup_time_stamp": lineup_time_stamp,
+            },
+            index=[0],
         )
 
     # Connect to database.
-    #start_time = time.time()
     mongo_init(db_hosts=db_hosts, config=config, db_host=db_host)
-    #con_time = time.time()
-    #print("--- connection_time: %s seconds ---" % (con_time - start_time))
 
     # Extract games.
     games = GameFeatures.get_all_games(limit=limit)
     games = pd.DataFrame(games.as_pymongo())
-    #game_time = time.time()
-    #print("--- games_time: %s seconds ---" % (game_time - con_time))
 
     # Filter Data.
     games = games[
@@ -101,74 +100,66 @@ def data_aggregator(
         ]
     ]
 
-    # Add 1X2 odds.
-    games[["preGameOdds1", "preGameOddsX", "preGameOdds2"]] = games.apply(
-        lambda row: _odds(
-            game_id=row["gameId"],
-            game_date=row["gameDate"],
-            market_type="1x2",
-        ),
-        axis="columns",
-        result_type="expand",
-    )
-    #o1x2_time = time.time()
-    #print("--- 1x2_time: %s seconds ---" % (o1x2_time - game_time))
-    
-
-    # Add Asian handicap odds.
-    games[["preGameAhHome", "preGameAhAway", "LineId"]] = games.apply(
-        lambda row: _odds(
-            game_id=row["gameId"],
-            game_date=row["gameDate"],
-            market_type="asian",
-        ),
-        axis="columns",
-        result_type="expand",
-    )
-    #ah_time = time.time()
-    #print("--- ah_time: %s seconds ---" % (ah_time - o1x2_time))
-
-    # Add Home team lineup features.
-    games[
-        [
-            "homeTeamName",
-            "homeTeamLineup",
-            "homeTeamLineupIds",
-            "homeTeamLineupSlots",
-            "homeTeamFormation",
-            "home_team_lineup_received_at",
-        ]
-    ] = games.apply(
-        lambda row: _team_features(
-            team_id=row["homeTeamId"], game_date=row["gameDate"]
-        ),
-        axis="columns",
-        result_type="expand",
-    )
-    #lup_time = time.time()
-    #print("--- lup_time: %s seconds ---" % (lup_time - ah_time))
-
-    # Add away team lineup features.
-    games[
-        [
-            "awayTeamName",
-            "awayTeamLineup",
-            "awayTeamLineupIds",
-            "awayTeamLineupSlots",
-            "awayTeamFormation",
-            "away_team_lineup_received_at",
-        ]
-    ] = games.apply(
-        lambda row: _team_features(
-            team_id=row["awayTeamId"], game_date=row["gameDate"]
-        ),
-        axis="columns",
-        result_type="expand",
-    )
-    #lup_feats = time.time()
-    #print("--- lup_feats: %s seconds ---" % (lup_feats - lup_time))
-
     # Map results {homewin -> 0 , draw -> 1, awaywin -> 2}.
     games["tgt_outcome"] = games["tgt_outcome"].map({1.0: 0.0, 0.0: 2.0, 0.5: 1.0})
 
-    return games
+    # compute other features
+    def _one_game(row):
+        o_1x2 = pd.DataFrame(
+            _odds(
+                game_id=row["gameId"],
+                game_date=row["gameDate"],
+                market_type="1x2",
+            ).reshape(1, -1),
+            columns=["preGameOdds1", "preGameOddsX", "preGameOdds2"],
+            index=[0],
+        )
+
+        o_ah = pd.DataFrame(
+            _odds(
+                game_id=row["gameId"],
+                game_date=row["gameDate"],
+                market_type="asian",
+            ).reshape(1, -1),
+            columns=["preGameAhHome", "preGameAhAway", "LineId"],
+            index=[0],
+        )
+
+        ht_feats = _team_features(
+            team_id=row["homeTeamId"], game_date=row["gameDate"]
+        ).rename(
+            columns={
+                "team_name": "homeTeamName",
+                "team_lineups_names": "homeTeamLineup",
+                "team_lienups_ids": "homeTeamLineupIds",
+                "team_lienups_slots": "homeTeamLineupSlots",
+                "formation_name": "homeTeamFormation",
+                "lineup_time_stamp": "home_team_lineup_received_at",
+            },
+        )
+
+        at_feats = _team_features(
+            team_id=row["awayTeamId"], game_date=row["gameDate"]
+        ).rename(
+            columns={
+                "team_name": "awayTeamName",
+                "team_lineups_names": "awayTeamLineup",
+                "team_lienups_ids": "awayTeamLineupIds",
+                "team_lienups_slots": "awayTeamLineupSlots",
+                "formation_name": "awayTeamFormation",
+                "lineup_time_stamp": "away_team_lineup_received_at",
+            },
+        )
+
+        res = pd.concat([o_1x2, o_ah, ht_feats, at_feats], axis=1)
+        res.loc[:, "gameId"] = row.gameId
+
+        return res
+
+    return games.merge(
+        pd.concat(
+            [_one_game(row) for _, row in tqdm(games.iterrows(), total=games.shape[0])]
+        ).reset_index(drop=True),
+        on="gameId",
+        how="left",
+    )

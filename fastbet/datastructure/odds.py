@@ -64,11 +64,13 @@ class MarketOdds(mongoengine.Document):
 
         if date is None:
             date = datetime.datetime.now()
+        
         if market == "asian":
             # Asian lines.
             odds_feats = cls.objects(
                 game_id=ra_game_id, market_type=market, received_at__lt=date
             ).order_by("-received_at")
+            
             # Case empty.
             if odds_feats is None:
                 return None
@@ -83,6 +85,7 @@ class MarketOdds(mongoengine.Document):
             all_lines = all_lines.drop_duplicates(
                 subset=["game_id", "line_id"], keep="first"
             )
+            
             # Calculate delta between odds1 and odds 2.
             all_lines["delta"] = abs(all_lines["odds1"] - 2.0) + abs(
                 all_lines["odds2"] - 2.0
@@ -105,13 +108,14 @@ class MarketOdds(mongoengine.Document):
     def get_odds_features(
         cls,
         ra_game_id: str,  # Real-analytics game identifier.
-        market: str,  # Type of market required; should one of MARKET_TYPES.
+        market: str = None,  # Type of market required; should one of MARKET_TYPES.
         date: datetime.datetime = None,  # Find the lastest data document prior to `date`.
     ) -> pd.DataFrame:  # 1-row Data.Frame with odds columns and probabilities columns.
         "Extract odds features and compute implied probs"
 
         if date is None:
             date = datetime.datetime.now()
+        
         # Extract squad info.
         odds_feats = cls.get_latest(ra_game_id, market, date)
         if odds_feats is None:
