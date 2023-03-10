@@ -21,16 +21,17 @@ config_path_env = os.getenv("BETTING_ENV_CONFIG")
 config_path_local = Path("/secrets/config.toml")
 config_path_pkg = Path("config.toml")
 
-if not config_path_env is None and Path(config_path_env).exists():
-    CONFIG = toml.load(config_path_env)
-elif config_path_local.exists():
+if config_path_local.exists():
     CONFIG = toml.load(config_path_local)
 elif config_path_pkg.exists():
     CONFIG = toml.load(config_path_pkg)
+elif config_path_env is None:
+    CONFIG = toml.load(config_path_env)
 else:
     logger.error(
         "No config file found under `BETTING_ENV_CONFIG`, pkg root or in `/secrets/config.toml`!"
     )
+    CONFIG = {"databases": "public_atlas"}
 
 # Defined database hosts.
 DB_HOSTS = set([db for db in CONFIG["databases"]])
