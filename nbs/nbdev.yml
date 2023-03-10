@@ -1,0 +1,9 @@
+project:
+  output-dir: _docs
+
+website:
+  title: "fastbet"
+  site-url: "https://real-analytics-rd.github.io/fastbet"
+  description: "Create a custom gym environment to simulate simple betting strategy."
+  repo-branch: mainx
+  repo-url: "https://github.com/real-analytics-rd/fastbet"

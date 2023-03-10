@@ -1,0 +1,16 @@
+name: Deploy to GitHub Pages and Tag
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: decrypt secrets
+        run: ./decrypt_secret.sh
+        env:
+          SECRET_CONFIG_PY: ${{ secrets.CONFIG_PY_NEW }}
+      - name: nbdev deploy
+        uses: fastai/workflows/quarto-ghp@master

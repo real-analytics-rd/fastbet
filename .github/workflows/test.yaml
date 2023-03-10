@@ -1,0 +1,14 @@
+name: CI
+on:  [workflow_dispatch, pull_request, push]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: decrypt secrets
+        run: ./decrypt_secret.sh
+        env:
+          SECRET_CONFIG_PY: ${{ secrets.CONFIG_PY_NEW }}
+      - name: nbdev test
+        uses: fastai/workflows/nbdev-ci@master
