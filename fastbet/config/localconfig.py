@@ -6,9 +6,8 @@ __all__ = ['logger', 'config_path_env', 'config_path_local', 'config_path_pkg', 
 # %% ../../nbs/Config/000_config.ipynb 4
 import logging
 import os
-from pathlib import Path
-
 import toml
+from pathlib import Path
 
 # Config.
 logging.basicConfig(
@@ -20,7 +19,7 @@ logger = logging.getLogger(__name__)
 # Read local `config.toml` file.
 config_path_env = os.getenv("BETTING_ENV_CONFIG")
 config_path_local = Path("/secrets/config.toml")
-config_path_pkg = Path("../../config.toml")
+config_path_pkg = Path("config.toml")
 
 if not config_path_env is None and Path(config_path_env).exists():
     CONFIG = toml.load(config_path_env)
