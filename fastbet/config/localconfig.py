@@ -6,7 +6,6 @@ __all__ = ['logger', 'config_path_env', 'config_path_local', 'config_path_pkg', 
 # %% ../../nbs/Config/000_config.ipynb 4
 import logging
 import os
-import sys
 from pathlib import Path
 
 import toml
@@ -33,7 +32,6 @@ else:
     logger.error(
         "No config file found under `BETTING_ENV_CONFIG`, pkg root or in `/secrets/config.toml`!"
     )
-    sys.exit()
 
 # Defined database hosts.
 DB_HOSTS = set([db for db in CONFIG["databases"]])
