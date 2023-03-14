@@ -72,6 +72,7 @@ def mongo_init(
     db_host: str,  # Host name as defined in `DB_HOSTS`.
     db_hosts: Dict = DB_HOSTS,  # All DB hosts.
     config: Dict = CONFIG,  # Database config.
+    db_alias: str = "features", # db-alias
 ):
     "Register all the required mongo connections."
     # check that the host name provided is valid
@@ -88,5 +89,5 @@ def mongo_init(
         config=config,
         db_host=db_host,
         db_name=config["connections"]["features"]["db"],
-        db_alias="features",
+        db_alias=db_alias,
     )

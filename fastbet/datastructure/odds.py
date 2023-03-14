@@ -4,11 +4,12 @@
 __all__ = ['MARKET_TYPES', 'MarketOdds']
 
 # %% ../../nbs/dataStrcuture/03_odds.ipynb 3
-import pandas as pd
-import mongoengine
-import re
 import datetime
 import logging
+import re
+
+import mongoengine
+import pandas as pd
 
 # %% ../../nbs/dataStrcuture/03_odds.ipynb 5
 MARKET_TYPES = ("asian", "total", "1x2")
@@ -54,7 +55,29 @@ class MarketOdds(mongoengine.Document):
     }
 
     @classmethod
-    def get_latest(
+    def get_all_odds(
+        cls,
+        ra_game_id: str,  # Real-analytics game identifier.
+        date: datetime.datetime = None,  # Find the lastest data document prior to `date`.
+    ) -> pd.DataFrame:  # ALL markets information.
+        "Extract latest odds (1x2, Asian handicap and Total) available for a given game prior to a given date"
+
+        if date is None:
+            date = datetime.datetime.now()
+
+        odds_feats = cls.objects(game_id=ra_game_id, received_at__lt=date).order_by(
+            "-received_at"
+        )
+
+        if odds_feats is None:
+            return None
+
+        return pd.concat(
+            [pd.DataFrame([{x: odds[x] for x in odds}]) for odds in odds_feats]
+        ).reset_index(drop=True)
+
+    @classmethod
+    def get_latest_market(
         cls,
         ra_game_id: str,  # Real-analytics game identifier.
         market: str,  #  Type of market required; should one of MARKET_TYPES.
@@ -64,13 +87,13 @@ class MarketOdds(mongoengine.Document):
 
         if date is None:
             date = datetime.datetime.now()
-        
+
         if market == "asian":
             # Asian lines.
             odds_feats = cls.objects(
                 game_id=ra_game_id, market_type=market, received_at__lt=date
             ).order_by("-received_at")
-            
+
             # Case empty.
             if odds_feats is None:
                 return None
@@ -85,7 +108,7 @@ class MarketOdds(mongoengine.Document):
             all_lines = all_lines.drop_duplicates(
                 subset=["game_id", "line_id"], keep="first"
             )
-            
+
             # Calculate delta between odds1 and odds 2.
             all_lines["delta"] = abs(all_lines["odds1"] - 2.0) + abs(
                 all_lines["odds2"] - 2.0
@@ -115,9 +138,9 @@ class MarketOdds(mongoengine.Document):
 
         if date is None:
             date = datetime.datetime.now()
-        
+
         # Extract squad info.
-        odds_feats = cls.get_latest(ra_game_id, market, date)
+        odds_feats = cls.get_latest_market(ra_game_id, market, date)
         if odds_feats is None:
             return None
 

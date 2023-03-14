@@ -19,28 +19,84 @@ from .team_lineup import *
 
 # %% ../../nbs/dataStrcuture/04_data_extractor.ipynb 7
 def data_aggregator(
-    db_hosts: dict,  # All DB hosts.
-    config: dict,  # Database config.
-    db_host: str = "prod_atlas",  # Database host name.
     limit: int = None,  # Number of rows to extract.
 ) -> pd.DataFrame:  # Mapped games.
     "Returns and aggregates games information from multiple Db collections."
 
+    def _get_odds_columns(
+        odds: pd.DataFrame,
+    ) -> Tuple:  # set of odds
+        "Returns Odds for a given market."
+        if odds is None:
+            return None, None, None, None
+        
+        if isinstance(odds, pd.DataFrame):
+            odds = odds.head(1).squeeze()
+
+        return odds.odds1, odds.odds2, odds.oddsX, odds.line_id
+
+    def _keep_even_line(
+        game_odds: pd.DataFrame,  # All markets for a given game.
+    ) -> pd.DataFrame:
+        "Returns indexes of the non-even lines."
+
+        if game_odds is None:
+            return None
+        if not game_odds.shape[0]:
+            return None
+
+        # Calculate delta between "odds1" and "odds2" columns
+        game_odds = game_odds.copy()
+        game_odds["delta"] = abs(game_odds["odds1"] - 2.0) + abs(
+            game_odds["odds2"] - 2.0
+        )
+
+        return game_odds.loc[game_odds.delta.idxmin(),].drop(columns="delta")
+
     def _odds(
         game_id: str,  # Real-analytics game identifier.
         game_date: datetime.datetime,  # Find the lastest data document prior to `date`.
-        market_type: str,  # Type of market required; should one of 1x2 and Asian Handicap.
     ) -> np.ndarray:  # Odds values.
         "Returns game Odds. It can be 1x2 or Asian Handicap."
 
-        if market_type == "1x2":
-            return MarketOdds.get_odds_features(
-                ra_game_id=game_id, market=market_type, date=game_date
-            )[["odds1", "oddsX", "odds2"]].values[0]
-        else:
-            return MarketOdds.get_latest(
-                ra_game_id=game_id, market=market_type, date=game_date
-            )[["odds1", "odds2", "line_id"]].values[0]
+        # Extract all odds(1x2, Asian handicap and Total).
+        all_game_odds = MarketOdds.get_all_odds(ra_game_id=game_id, date=game_date)
+
+        # select each market
+        _odds_1x2 = all_game_odds[all_game_odds.market_type == "1x2"]
+        
+        _odds_asian = _keep_even_line(
+            all_game_odds[all_game_odds.market_type == "asian"]
+        )
+        _odds_total = _keep_even_line(
+            all_game_odds[all_game_odds.market_type == "total"]
+        )
+
+        # 1X2 odds.
+        odds_1_1x2, odds_2_1x2, odds_x_1x2, _ = _get_odds_columns(_odds_1x2)
+        if odds_1_1x2 is None:
+            set_trace()
+
+        # Asian Handicap.
+        odds_1_ah, odds_2_ah, _, line_ah = _get_odds_columns(_odds_asian)
+
+        # Total(Over/Under) odds.
+        odds_1_total, odds_2_total, _, line_total = _get_odds_columns(_odds_total)
+
+        return pd.DataFrame(
+            {
+                "preGameOdds1": odds_1_1x2,
+                "preGameOddsX": odds_x_1x2,
+                "preGameOdds2": odds_2_1x2,
+                "preGameAhHome": odds_1_ah,
+                "preGameAhAway": odds_2_ah,
+                "preGameAhLineId": line_ah,
+                "preGameOver": odds_1_total,
+                "preGameUnder": odds_2_total,
+                "preGameTotalLineId": line_total,
+            },
+            index=[0],
+        )
 
     def _team_features(
         team_id: str,  # Real-analytics game identifier.
@@ -77,14 +133,13 @@ def data_aggregator(
             },
             index=[0],
         )
-
-    # Connect to database.
-    mongo_init(db_hosts=db_hosts, config=config, db_host=db_host)
+    
+    
 
     # Extract games.
     games = GameFeatures.get_all_games(limit=limit)
     games = pd.DataFrame(games.as_pymongo())
-
+    
     # Filter Data.
     games = games[
         [
@@ -97,6 +152,8 @@ def data_aggregator(
             "awayTeam_optaId",
             "tgt_gd",
             "tgt_outcome",
+            "tgt_homeTeamGoals",
+            "tgt_awayTeamGoals",
         ]
     ]
 
@@ -105,24 +162,9 @@ def data_aggregator(
 
     # compute other features
     def _one_game(row):
-        o_1x2 = pd.DataFrame(
-            _odds(
-                game_id=row["gameId"],
-                game_date=row["gameDate"],
-                market_type="1x2",
-            ).reshape(1, -1),
-            columns=["preGameOdds1", "preGameOddsX", "preGameOdds2"],
-            index=[0],
-        )
-
-        o_ah = pd.DataFrame(
-            _odds(
-                game_id=row["gameId"],
-                game_date=row["gameDate"],
-                market_type="asian",
-            ).reshape(1, -1),
-            columns=["preGameAhHome", "preGameAhAway", "LineId"],
-            index=[0],
+        o_1x2_ah_total = _odds(
+            game_id=row["gameId"],
+            game_date=row["gameDate"],
         )
 
         ht_feats = _team_features(
@@ -151,7 +193,7 @@ def data_aggregator(
             },
         )
 
-        res = pd.concat([o_1x2, o_ah, ht_feats, at_feats], axis=1)
+        res = pd.concat([o_1x2_ah_total, ht_feats, at_feats], axis=1)
         res.loc[:, "gameId"] = row.gameId
 
         return res

@@ -9,6 +9,7 @@ from IPython.display import HTML
 import pandas as pd
 
 from fastbet.config.localconfig import CONFIG, DB_HOSTS
+from fastbet.config.mongo import mongo_init
 from fastbet.datastructure.data_extractor import data_aggregator
 from fastbet.environment import BettingEnv
 ```
@@ -28,6 +29,12 @@ in the environment variable `BETTING_ENV_CONFIG`. An example of `config`
 file is provided with the package and will be used by default. It is the
 user’s responsibility to make sure this file is saved at the right
 location if you want to use your own.
+
+Let’s start by registering the connection to the mongo database:
+
+``` python
+mongo_init(db_host="public_atlas")
+```
 
 ## Simplified betting environment
 
@@ -50,9 +57,7 @@ opportunities are available.
 ### Load games
 
 ``` python
-fixtures = data_aggregator(
-    db_hosts=DB_HOSTS, config=CONFIG, db_host="public_atlas", limit=10
-)
+fixtures = data_aggregator(limit=10)
 ```
 
 ### Init environment
