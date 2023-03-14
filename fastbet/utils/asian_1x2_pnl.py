@@ -11,9 +11,9 @@ import pandas as pd
 # %% ../../nbs/Utils/01_pnl_calculator.ipynb 13
 def pnl_1X2(
     selection: np.ndarray,  # The amount invested on each selection.
-    outcome: np.ndarray,  # Game result (Binary side outcome), shape=(1,5).
-    odds: np.ndarray,  # odds for the current game, shape=(1,5)
-) -> np.ndarray:  # 1X2 PnL
+    outcome: np.ndarray,  # Game result (Binary side outcome), shape=(1,7).
+    odds: np.ndarray,  # Odds for the current game, shape=(1,7).
+) -> np.ndarray:  # 1X2 PnL.
     "Returns the 1X2 PnL."
     assert selection.shape == odds.shape, "odds and selection should be same shape!"
     assert outcome.shape == odds.shape, "odds and outcome should be same shape!"
@@ -23,8 +23,11 @@ def pnl_1X2(
     return pnl.sum(axis=1).reshape((n, -1))
 
 # %% ../../nbs/Utils/01_pnl_calculator.ipynb 18
-def _asian_unit_pnl(advantage, asian_odds):
-    "provides the asian outcome given for a unit bet."
+def _asian_unit_pnl(
+    advantage: float,  # Side advantage.
+    asian_odds: float,  # AH odds.
+):
+    "Provides the asian outcome given for a unit bet."
 
     if advantage == 0:
         return 0.0
@@ -46,7 +49,7 @@ def pnl_ah(
 ) -> np.ndarray:  # Asian Handicap PnL.
     "Returns the Asian Handicap PnL"
 
-    # check dimension
+    # Check dimension.
     n = selection.shape[0]
     obs_gd = obs_gd.reshape((n, -1))
     ah_line = ah_line.reshape((n, -1))
@@ -55,16 +58,16 @@ def pnl_ah(
     ah_selection = selection[:, 3:5]
     ah_odds = odds[:, 3:5]
 
-    # change line sign if betting on away
+    # Change line sign if betting on away.
     ah_idx = np.where(ah_selection > 0)
     flip_sign = np.zeros_like(ah_line)
     flip_sign[ah_idx[0], 0] = np.where(ah_idx[1] == 0, 1, -1)
 
-    # reshape odds
+    # Reshape odds.
     _ah_odds = np.zeros_like(ah_line)
     _ah_odds[ah_idx[0], 0] = ah_odds[ah_idx]
 
-    # reshape selection
+    # Reshape selection.
     _ah_sel = np.zeros_like(ah_line)
     _ah_sel[ah_idx[0], 0] = ah_selection[ah_idx]
 
@@ -77,14 +80,14 @@ def pnl_ah(
 
 # %% ../../nbs/Utils/01_pnl_calculator.ipynb 23
 def pnl_total(
-    selection: np.ndarray,  # The amount invested on each selection; shape n x 7; last 2 are for over/under
-    odds: np.ndarray,  # market odds in 1|X|2|A1|A2|O|U order; shape n x 7
-    obs_total: np.ndarray,  # Game total goals; shape (n,)
-    total_line: np.ndarray,  # Asian total goal line could be integer, half or quarter line; shape (n,)
+    selection: np.ndarray,  # The amount invested on each selection; shape n x 7; last 2 are for over/under.
+    odds: np.ndarray,  # Market odds in 1|X|2|A1|A2|O|U order; shape n x 7.
+    obs_total: np.ndarray,  # Game total goals; shape (n,).
+    total_line: np.ndarray,  # Asian total goal line could be integer, half or quarter line; shape (n,).
 ) -> np.ndarray:  # Asian Total goal PnL.
-    "Returns the Asian total goal PnL"
+    "Returns the Asian total goal PnL."
 
-    # check dimension
+    # Check dimension.
     n = selection.shape[0]
     obs_total = obs_total.reshape((n, -1))
     total_line = total_line.reshape((n, -1))
@@ -93,16 +96,16 @@ def pnl_total(
     ah_selection = selection[:, -2:]
     ah_odds = odds[:, -2:]
 
-    # change line sign if betting on away
+    # Change line sign if betting on away.
     ah_idx = np.where(ah_selection > 0)
     flip_sign = np.zeros_like(total_line)
     flip_sign[ah_idx[0], 0] = np.where(ah_idx[1] == 0, 1, -1)
 
-    # reshape odds
+    # Reshape odds.
     _ah_odds = np.zeros_like(total_line)
     _ah_odds[ah_idx[0], 0] = ah_odds[ah_idx]
 
-    # reshape selection
+    # Reshape selection.
     _ah_sel = np.zeros_like(total_line)
     _ah_sel[ah_idx[0], 0] = ah_selection[ah_idx]
 
@@ -115,37 +118,37 @@ def pnl_total(
 
 # %% ../../nbs/Utils/01_pnl_calculator.ipynb 27
 def pnl(
-    selection: np.ndarray,  # The amount invested on each selection; shape n x 7; 
-    odds: np.ndarray,  # market odds in 1|X|2|A1|A2|O|U order; shape n x 7
-    obs_gd: np.ndarray,  # Game goal-difference; shape (n,)
-    obs_total:np.ndarray,  # Game total-goals; shape (n,)
-    ah_line: np.ndarray,  # Asian line could be integer, half or quarter line; shape (n,)
-    total_line: np.ndarray,  # Asian total line could be integer, half or quarter line; shape (n,)
-) -> np.ndarray:  # total PnL.
+    selection: np.ndarray,  # The amount invested on each selection; shape n x 7.
+    odds: np.ndarray,  # Market odds in 1|X|2|A1|A2|O|U order; shape n x 7.
+    obs_gd: np.ndarray,  # Game goal-difference; shape (n,).
+    obs_total: np.ndarray,  # Game total-goals; shape (n,).
+    ah_line: np.ndarray,  # Asian line could be integer, half or quarter line; shape (n,).
+    total_line: np.ndarray,  # Asian total line could be integer, half or quarter line; shape (n,).
+) -> np.ndarray:  # Total PnL.
     "Returns the total PnL"
-    # check dimesnion
+    # Check dimesnion.
     n = selection.shape[0]
     assert selection.shape == odds.shape, "odds and selection should be same shape!"
 
     if len(obs_gd.shape) > 1 and obs_gd.shape[1] == 1:
         obs_gd = obs_gd.squeeze(1)
-    
+
     if len(obs_total.shape) > 1 and obs_total.shape[1] == 1:
         obs_total = obs_total.squeeze(1)
-        
-    # 1x2 results
+
+    # 1x2 results.
     binary_result = np.zeros_like(selection)
     binary_result[obs_gd > 0, 0] = 1
     binary_result[obs_gd == 0, 1] = 1
     binary_result[obs_gd < 0, 2] = 1
 
-    # 1x2 pnl
+    # 1x2 pnl.
     _pnl_1x2 = pnl_1X2(selection, binary_result, odds)
 
-    # ah-line
+    # Ah-line.
     _pnl_ah = pnl_ah(selection, odds, obs_gd, ah_line)
-    
-    # total
+
+    # Total.
     _pnl_total = pnl_total(selection, odds, obs_total, total_line)
 
     _total_pnl = _pnl_1x2 + _pnl_ah + _pnl_total
