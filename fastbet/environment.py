@@ -42,6 +42,12 @@ Actions = namedtuple(
         "small_bet_on_away_team_asian_handicap",
         "medium_bet_on_away_team_asian_handicap",
         "large_bet_on_away_team_asian_handicap",
+        "small_bet_on_over",
+        "medium_bet_on_over",
+        "large_bet_on_over",
+        "small_bet_on_under",
+        "medium_bet_on_under",
+        "large_bet_on_under",
     ],
 )
 
@@ -58,8 +64,9 @@ class Observation:
         teams_names: np.ndarray,  # Team names (homeTeam name, awayteam name), shape=(2,).
         ra_teams_ids: np.ndarray,  # Teams Real-Analytics Ids [homeTeam Id, awayTeam Id], shape=(2,).
         opta_teams_ids: np.ndarray,  # Teams opta Ids [homeTeam Id, awayTeam Id], shape=(2,).
-        betting_market: np.ndarray,  # Odds [[1X2 and Asian Handicap]], shape=(1,5).
+        betting_market: np.ndarray,  # Odds [[1X2, Asian Handicap and total]], shape=(1,7).
         ah_line: float,  # Asian handicap line.
+        total_line: float, # total goals line
         shape: tuple,  # Observation shape = (30,).
     ):
         # Checks on objects shape compatibilites.
@@ -103,12 +110,15 @@ class Observation:
         ), f"Invalid shape for opta_teams_ids: {opta_teams_ids.shape}. Expected (2,)."
         assert betting_market.shape == (
             1,
-            5,
+            7,
         ), f"Invalid shape for betting_market: {betting_market.shape}. Expected (1, 5)."
         assert isinstance(
             ah_line, float
         ), f"ah_line must be a float. Got {type(ah_line)}."
-        assert shape == (30,), f"Invalid observation_shape: {shape}. Expected (30,)."
+        assert isinstance(
+            total_line, float
+        ), f"total_line must be a float. Got {type(total_line)}."
+        assert shape == (1,), f"Invalid observation_shape: {shape}. Expected (30,)."
 
         store_attr()
 
@@ -118,10 +128,6 @@ def __call__(self: Observation) -> Observation:
     "Numpy encoder."
     self.numerical_observation = np.array(
         [self.game_id]
-        + list(self.opta_teams_ids)
-        + self.lineups_ids[0]
-        + self.lineups_ids[1]
-        + list(self.betting_market.flatten())
     )
     self.dtype = self.numerical_observation.dtype
     return self
@@ -162,9 +168,12 @@ def pretty(self: Observation) -> pd.DataFrame:
         "odds1": self.betting_market[:, 0:3][0][0],
         "oddsX": self.betting_market[:, 0:3][0][1],
         "odds2": self.betting_market[:, 0:3][0][2],
-        "oddsAhHome": self.betting_market[:, 3:][0][0],
-        "oddsAhAway": self.betting_market[:, 3:][0][1],
+        "oddsAhHome": self.betting_market[:, 3:5][0][0],
+        "oddsAhAway": self.betting_market[:, 3:5][0][1],
+        "oddsOver": self.betting_market[:, -2:][0][0],
+        "oddsUnder": self.betting_market[:, -2:][0][1],
         "ahLine": [self.ah_line],
+        "totalLine": [self.total_line],
     }
 
     return pd.DataFrame(self.observation, index=[0])
@@ -184,6 +193,8 @@ class BettingEnv(gym.Env):
             "preGameOddsX",
             "preGameAhHome",
             "preGameAhAway",
+            "preGameOver",
+            "preGameUnder",
         ],  # Betting odds column names.
         starting_bank: float = 100.0,  # Starting bank account.
         small_bet: float = SMALL_BET,  # Small bet proportion value.
@@ -224,7 +235,8 @@ class BettingEnv(gym.Env):
         self._odds = self._game[odds_column_names].values
 
         # Ah lines.
-        self._lines = self._game["LineId"].values
+        self._lines = self._game["preGameAhLineId"].values
+        self._total_lines = self._game["preGameTotalLineId"].values
 
         # Teams names.
         self._teams_names = self._game[["homeTeamName", "awayTeamName"]].values
@@ -258,6 +270,9 @@ class BettingEnv(gym.Env):
 
         # Game goal-difference.
         self._gd = self._game["tgt_gd"].values
+        
+        # Total Goals
+        self._total_goals = self._game.tgt_homeTeamGoals.values + self._game.tgt_awayTeamGoals.values
 
         # Env balance.
         self.balance, self.starting_bank = starting_bank, starting_bank
@@ -278,22 +293,28 @@ class BettingEnv(gym.Env):
         self.actions_list = Actions(
             *np.array(
                 [
-                    [0, 0, 0, 0, 0],  # No bets.
-                    [small_bet, 0, 0, 0, 0],  # Betting on home team (1x2).
-                    [medium_bet, 0, 0, 0, 0],  # Betting on home team (1x2).
-                    [large_bet, 0, 0, 0, 0],  # Betting on home team (1x2).
-                    [0, 0, small_bet, 0, 0],  # Betting on away team (1x2).
-                    [0, 0, medium_bet, 0, 0],  # Betting on away team (1x2).
-                    [0, 0, large_bet, 0, 0],  # Betting on away team (1x2).
-                    [0, small_bet, 0, 0, 0],  # Betting on draw (1x2).
-                    [0, medium_bet, 0, 0, 0],  # Betting on draw (1x2).
-                    [0, large_bet, 0, 0, 0],  # Betting on draw (1x2).
-                    [0, 0, 0, small_bet, 0],  # Betting on home (Asian Handicap).
-                    [0, 0, 0, medium_bet, 0],  # Betting on home (Asian Handicap).
-                    [0, 0, 0, large_bet, 0],  # Betting on home (Asian Handicap).
-                    [0, 0, 0, 0, small_bet],  # Betting on away (Asian Handicap).
-                    [0, 0, 0, 0, medium_bet],  # Betting on away (Asian Handicap).
-                    [0, 0, 0, 0, large_bet],  # Betting on away (Asian Handicap).
+                    [0, 0, 0, 0, 0, 0, 0],  # No bets.
+                    [small_bet, 0, 0, 0, 0, 0, 0],  # Betting on home team (1x2).
+                    [medium_bet, 0, 0, 0, 0, 0, 0],  # Betting on home team (1x2).
+                    [large_bet, 0, 0, 0, 0, 0, 0],  # Betting on home team (1x2).
+                    [0, 0, small_bet, 0, 0, 0, 0],  # Betting on away team (1x2).
+                    [0, 0, medium_bet, 0, 0, 0, 0],  # Betting on away team (1x2).
+                    [0, 0, large_bet, 0, 0, 0, 0],  # Betting on away team (1x2).
+                    [0, small_bet, 0, 0, 0, 0, 0],  # Betting on draw (1x2).
+                    [0, medium_bet, 0, 0, 0, 0, 0],  # Betting on draw (1x2).
+                    [0, large_bet, 0, 0, 0, 0, 0],  # Betting on draw (1x2).
+                    [0, 0, 0, small_bet, 0, 0, 0],  # Betting on home (Asian Handicap).
+                    [0, 0, 0, medium_bet, 0, 0, 0],  # Betting on home (Asian Handicap).
+                    [0, 0, 0, large_bet, 0, 0, 0],  # Betting on home (Asian Handicap).
+                    [0, 0, 0, 0, small_bet, 0, 0],  # Betting on away (Asian Handicap).
+                    [0, 0, 0, 0, medium_bet, 0, 0],  # Betting on away (Asian Handicap).
+                    [0, 0, 0, 0, large_bet, 0, 0],  # Betting on away (Asian Handicap).
+                    [0, 0, 0, 0, 0, small_bet, 0],  # Betting on over 
+                    [0, 0, 0, 0, 0, medium_bet, 0],  # Betting on over
+                    [0, 0, 0, 0, 0, large_bet, 0],  # Betting on over
+                    [0, 0, 0, 0, 0, 0, small_bet],  # Betting on under
+                    [0, 0, 0, 0, 0, 0, medium_bet],  # Betting on under
+                    [0, 0, 0, 0, 0, 0, large_bet],  # Betting on under
                 ]
             )
         )
@@ -330,9 +351,7 @@ class BettingEnv(gym.Env):
         self.observation_space = gym.spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(
-                self._odds.shape[1] + 25,
-            ),  # 25 = 22(players Ids) + 2(home and away team ids) + 1(gameId).
+            shape=(1,),
             dtype=np.float64,
         )
 
@@ -400,6 +419,7 @@ def get_observation(
         opta_teams_ids=self._teams_ids[index],
         betting_market=self.get_odds(),
         ah_line=self._lines[index],
+        total_line=self._total_lines[index],
         shape=self.observation_space.shape,
     )()
 
@@ -472,12 +492,18 @@ def step(
         # Reward (positive or negative).
         _obs_gd = np.array(listify(self._gd[self.current_step]))
         _ah_line = np.array(listify(self._lines[self.current_step]))
+        _obs_total = np.array(listify(self._total_goals[self.current_step]))
+        _total_line = np.array(listify(self._total_lines[self.current_step]))
+        
 
         _reward = pnl(
             selection=self.get_bet(action).reshape((1, -1)) * self.starting_bank,
             odds=self.get_odds().reshape((1, -1)),
             obs_gd=_obs_gd,
             ah_line=_ah_line,
+            obs_total=_obs_total,
+            total_line=_total_line,
+            
         ).squeeze(0)
         reward = _reward[0]
 

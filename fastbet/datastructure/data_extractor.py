@@ -19,60 +19,39 @@ from .team_lineup import *
 
 # %% ../../nbs/dataStrcuture/04_data_extractor.ipynb 7
 def data_aggregator(
-    db_hosts: dict,  # All DB hosts.
-    config: dict,  # Database config.
-    db_host: str = "prod_atlas",  # Database host name.
     limit: int = None,  # Number of rows to extract.
 ) -> pd.DataFrame:  # Mapped games.
     "Returns and aggregates games information from multiple Db collections."
 
     def _get_odds_columns(
         odds: pd.DataFrame,
-        market: str,
     ) -> Tuple:  # set of odds
         "Returns Odds for a given market."
+        if odds is None:
+            return None, None, None, None
+        
+        if isinstance(odds, pd.DataFrame):
+            odds = odds.head(1).squeeze()
 
-        odds_1 = (
-            odds[odds.market_type == market].odds1.values[0]
-            if len(odds[odds.market_type == market]) > 0
-            else None
-        )
-        odds_2 = (
-            odds[odds.market_type == market].odds2.values[0]
-            if len(odds[odds.market_type == market]) > 0
-            else None
-        )
-        odds_x = (
-            odds[odds.market_type == market].oddsX.values[0]
-            if len(odds[odds.market_type == market]) > 0
-            else None
-        )
+        return odds.odds1, odds.odds2, odds.oddsX, odds.line_id
 
-        line = (
-            odds[odds.market_type == market].line_id.values[0]
-            if len(odds[odds.market_type == market]) > 0
-            else None
-        )
-
-        return odds_1, odds_2, odds_x, line
-
-    def _filter_asian_lines(
-        all_game_odds: pd.DataFrame,  # All markets for a given game.
-    ) -> pd.core.indexes:
+    def _keep_even_line(
+        game_odds: pd.DataFrame,  # All markets for a given game.
+    ) -> pd.DataFrame:
         "Returns indexes of the non-even lines."
 
-        if all_game_odds is None:
+        if game_odds is None:
             return None
-        # Get asian market.
-        df_asian = all_game_odds[all_game_odds["market_type"] == "asian"].copy()
-        # Calculate delta between "odds1" and "odds2" columns
-        df_asian["delta"] = abs(df_asian["odds1"] - 2.0) + abs(df_asian["odds2"] - 2.0)
-        # Keep the line that has a minimum delta (even line).
-        not_even_line_idx = df_asian.loc[
-            ~(df_asian["delta"] == df_asian["delta"].min())
-        ].index
+        if not game_odds.shape[0]:
+            return None
 
-        return not_even_line_idx
+        # Calculate delta between "odds1" and "odds2" columns
+        game_odds = game_odds.copy()
+        game_odds["delta"] = abs(game_odds["odds1"] - 2.0) + abs(
+            game_odds["odds2"] - 2.0
+        )
+
+        return game_odds.loc[game_odds.delta.idxmin(),].drop(columns="delta")
 
     def _odds(
         game_id: str,  # Real-analytics game identifier.
@@ -82,22 +61,27 @@ def data_aggregator(
 
         # Extract all odds(1x2, Asian handicap and Total).
         all_game_odds = MarketOdds.get_all_odds(ra_game_id=game_id, date=game_date)
-        # No even lines indexes.
-        not_even_line_idx = _filter_asian_lines(all_game_odds=all_game_odds)
-        # Drop indexes.
-        all_game_odds = all_game_odds.drop(index=not_even_line_idx)
-        # Group by and Keep only once document per type of market.
-        final_odds = all_game_odds.loc[
-            all_game_odds.groupby("market_type")["received_at"].idxmax()
-        ]
+
+        # select each market
+        _odds_1x2 = all_game_odds[all_game_odds.market_type == "1x2"]
+        
+        _odds_asian = _keep_even_line(
+            all_game_odds[all_game_odds.market_type == "asian"]
+        )
+        _odds_total = _keep_even_line(
+            all_game_odds[all_game_odds.market_type == "total"]
+        )
+
         # 1X2 odds.
-        odds_1_1x2, odds_2_1x2, odds_x_1x2, _ = _get_odds_columns(final_odds, "1x2")
+        odds_1_1x2, odds_2_1x2, odds_x_1x2, _ = _get_odds_columns(_odds_1x2)
+        if odds_1_1x2 is None:
+            set_trace()
 
         # Asian Handicap.
-        odds_1_ah, odds_2_ah, _, line_ah = _get_odds_columns(final_odds, "asian")
+        odds_1_ah, odds_2_ah, _, line_ah = _get_odds_columns(_odds_asian)
 
         # Total(Over/Under) odds.
-        odds_1_total, odds_2_total, _, line_total = _get_odds_columns(final_odds, "total")
+        odds_1_total, odds_2_total, _, line_total = _get_odds_columns(_odds_total)
 
         return pd.DataFrame(
             {
@@ -106,10 +90,10 @@ def data_aggregator(
                 "preGameOdds2": odds_2_1x2,
                 "preGameAhHome": odds_1_ah,
                 "preGameAhAway": odds_2_ah,
-                "LineId": line_ah,
-                "preGameTotalHome": odds_1_ah,
-                "preGameTotalAway": odds_2_ah,
-                "totalLineId": line_total,
+                "preGameAhLineId": line_ah,
+                "preGameOver": odds_1_total,
+                "preGameUnder": odds_2_total,
+                "preGameTotalLineId": line_total,
             },
             index=[0],
         )
@@ -149,14 +133,13 @@ def data_aggregator(
             },
             index=[0],
         )
-
-    # Connect to database.
-    mongo_init(db_hosts=db_hosts, config=config, db_host=db_host)
+    
+    
 
     # Extract games.
     games = GameFeatures.get_all_games(limit=limit)
     games = pd.DataFrame(games.as_pymongo())
-
+    
     # Filter Data.
     games = games[
         [
@@ -169,6 +152,8 @@ def data_aggregator(
             "awayTeam_optaId",
             "tgt_gd",
             "tgt_outcome",
+            "tgt_homeTeamGoals",
+            "tgt_awayTeamGoals",
         ]
     ]
 

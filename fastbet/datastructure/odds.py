@@ -4,11 +4,12 @@
 __all__ = ['MARKET_TYPES', 'MarketOdds']
 
 # %% ../../nbs/dataStrcuture/03_odds.ipynb 3
-import pandas as pd
-import mongoengine
-import re
 import datetime
 import logging
+import re
+
+import mongoengine
+import pandas as pd
 
 # %% ../../nbs/dataStrcuture/03_odds.ipynb 5
 MARKET_TYPES = ("asian", "total", "1x2")
@@ -71,12 +72,9 @@ class MarketOdds(mongoengine.Document):
         if odds_feats is None:
             return None
 
-        all_odds = pd.DataFrame()
-        for odds in odds_feats:
-            odds_df = pd.DataFrame([{x: odds[x] for x in odds}])
-            all_odds = pd.concat([all_odds, odds_df])
-
-        return all_odds.reset_index(drop=True)
+        return pd.concat(
+            [pd.DataFrame([{x: odds[x] for x in odds}]) for odds in odds_feats]
+        ).reset_index(drop=True)
 
     @classmethod
     def get_latest_market(
