@@ -22,7 +22,7 @@ from .utils.asian_1x2_pnl import *
 # Bet size (small, medium, large) -> range[0,1].
 SMALL_BET, MEDIUM_BET, LARGE_BET = 0.05, 0.2, 0.7
 
-# Named Tuple for actions
+# Named Tuple for actions.
 Actions = namedtuple(
     "Actions",
     [
@@ -55,7 +55,7 @@ Actions = namedtuple(
 class Observation:
     def __init__(
         self,
-        game_id: int,  # Game Id.
+        game_id: int,  # Opta game Id.
         game_date: datetime.datetime,  # Game Date
         lineups: np.ndarray,  # Lineups(playerName:position), shape=(2,).
         lineups_ids: np.ndarray,  # Lineups opta Ids [list(11 home players Ids),list(11 away players Ids)], shape=(2,).
@@ -66,8 +66,8 @@ class Observation:
         opta_teams_ids: np.ndarray,  # Teams opta Ids [homeTeam Id, awayTeam Id], shape=(2,).
         betting_market: np.ndarray,  # Odds [[1X2, Asian Handicap and total]], shape=(1,7).
         ah_line: float,  # Asian handicap line.
-        total_line: float, # total goals line
-        shape: tuple,  # Observation shape = (30,).
+        total_line: float,  # Total goals line.
+        shape: tuple,  # Observation shape = (1,).
     ):
         # Checks on objects shape compatibilites.
         assert isinstance(
@@ -111,14 +111,14 @@ class Observation:
         assert betting_market.shape == (
             1,
             7,
-        ), f"Invalid shape for betting_market: {betting_market.shape}. Expected (1, 5)."
+        ), f"Invalid shape for betting_market: {betting_market.shape}. Expected (1, 7)."
         assert isinstance(
             ah_line, float
         ), f"ah_line must be a float. Got {type(ah_line)}."
         assert isinstance(
             total_line, float
         ), f"total_line must be a float. Got {type(total_line)}."
-        assert shape == (1,), f"Invalid observation_shape: {shape}. Expected (30,)."
+        assert shape == (1,), f"Invalid observation_shape: {shape}. Expected (1,)."
 
         store_attr()
 
@@ -126,9 +126,7 @@ class Observation:
 @patch
 def __call__(self: Observation) -> Observation:
     "Numpy encoder."
-    self.numerical_observation = np.array(
-        [self.game_id]
-    )
+    self.numerical_observation = np.array([self.game_id])
     self.dtype = self.numerical_observation.dtype
     return self
 
@@ -136,7 +134,7 @@ def __call__(self: Observation) -> Observation:
 @patch
 def reshape(
     self: Observation,
-    new_shape: tuple,  # new shape to transform the object in
+    new_shape: tuple,  # New shape to transform the object in.
 ) -> Observation:
     "Reshape observation."
     self.numerical_observation = self.numerical_observation.reshape(new_shape)
@@ -146,7 +144,7 @@ def reshape(
 @patch
 def astype(
     self: Observation,
-    data_type: str,  # new type to convert to
+    data_type: str,  # New type to convert to.
 ) -> Observation:
     "Cast observation type."
     self.numerical_observation = self.numerical_observation.astype(data_type)
@@ -234,7 +232,7 @@ class BettingEnv(gym.Env):
         # Odds (1X2 and Asian handicap) values.
         self._odds = self._game[odds_column_names].values
 
-        # Ah lines.
+        # Ah and Total lines.
         self._lines = self._game["preGameAhLineId"].values
         self._total_lines = self._game["preGameTotalLineId"].values
 
@@ -270,9 +268,11 @@ class BettingEnv(gym.Env):
 
         # Game goal-difference.
         self._gd = self._game["tgt_gd"].values
-        
-        # Total Goals
-        self._total_goals = self._game.tgt_homeTeamGoals.values + self._game.tgt_awayTeamGoals.values
+
+        # Total Goals.
+        self._total_goals = (
+            self._game.tgt_homeTeamGoals.values + self._game.tgt_awayTeamGoals.values
+        )
 
         # Env balance.
         self.balance, self.starting_bank = starting_bank, starting_bank
@@ -309,12 +309,12 @@ class BettingEnv(gym.Env):
                     [0, 0, 0, 0, small_bet, 0, 0],  # Betting on away (Asian Handicap).
                     [0, 0, 0, 0, medium_bet, 0, 0],  # Betting on away (Asian Handicap).
                     [0, 0, 0, 0, large_bet, 0, 0],  # Betting on away (Asian Handicap).
-                    [0, 0, 0, 0, 0, small_bet, 0],  # Betting on over 
-                    [0, 0, 0, 0, 0, medium_bet, 0],  # Betting on over
-                    [0, 0, 0, 0, 0, large_bet, 0],  # Betting on over
-                    [0, 0, 0, 0, 0, 0, small_bet],  # Betting on under
-                    [0, 0, 0, 0, 0, 0, medium_bet],  # Betting on under
-                    [0, 0, 0, 0, 0, 0, large_bet],  # Betting on under
+                    [0, 0, 0, 0, 0, small_bet, 0],  # Betting on over.
+                    [0, 0, 0, 0, 0, medium_bet, 0],  # Betting on over.
+                    [0, 0, 0, 0, 0, large_bet, 0],  # Betting on over.
+                    [0, 0, 0, 0, 0, 0, small_bet],  # Betting on under.
+                    [0, 0, 0, 0, 0, 0, medium_bet],  # Betting on under.
+                    [0, 0, 0, 0, 0, 0, large_bet],  # Betting on under.
                 ]
             )
         )
@@ -409,13 +409,13 @@ def get_observation(
     # Observation.
     return Observation(
         game_id=self._game_ids[index],
-        game_date= self._game["gameDate"][index],
+        game_date=self._game["gameDate"][index],
         lineups=self._lineups[index],
         lineups_ids=self._lineups_ids[index],
         lineups_slots=self._lineups_slots[index],
         lineups_formation=self._lineups_formations[index],
         teams_names=self._teams_names[index],
-        ra_teams_ids = self._ra_teams_ids[index],
+        ra_teams_ids=self._ra_teams_ids[index],
         opta_teams_ids=self._teams_ids[index],
         betting_market=self.get_odds(),
         ah_line=self._lines[index],

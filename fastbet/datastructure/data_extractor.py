@@ -17,7 +17,7 @@ from .game_features import *
 from .odds import *
 from .team_lineup import *
 
-# %% ../../nbs/dataStrcuture/04_data_extractor.ipynb 7
+# %% ../../nbs/dataStrcuture/04_data_extractor.ipynb 6
 def data_aggregator(
     limit: int = None,  # Number of rows to extract.
 ) -> pd.DataFrame:  # Mapped games.
