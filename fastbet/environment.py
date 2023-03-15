@@ -218,10 +218,13 @@ class BettingEnv(gym.Env):
             self._game = self._game.sort_values(
                 by=["lineupReceivedAt", "gameDate"]
             ).reset_index()
+            
             # Get gameDate date part.
             self._game["gameDate"] = pd.to_datetime(self._game["gameDate"]).dt.date
+            
             # Shift the timestamp values by adding an offset based on each row index.
             offset = pd.Timedelta("1 second")
+            
             self._game["lineupReceivedAt"] = (
                 self._game["lineupReceivedAt"] + self._game.index.to_series() * offset
             )
