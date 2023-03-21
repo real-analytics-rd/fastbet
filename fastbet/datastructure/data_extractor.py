@@ -62,6 +62,9 @@ def data_aggregator(
         # Extract all odds(1x2, Asian handicap and Total).
         all_game_odds = MarketOdds.get_all_odds(ra_game_id=game_id, date=game_date)
 
+        if all_game_odds is None:
+            return None
+
         # select each market
         _odds_1x2 = all_game_odds[all_game_odds.market_type == "1x2"]
         
@@ -74,8 +77,6 @@ def data_aggregator(
 
         # 1X2 odds.
         odds_1_1x2, odds_2_1x2, odds_x_1x2, _ = _get_odds_columns(_odds_1x2)
-        if odds_1_1x2 is None:
-            set_trace()
 
         # Asian Handicap.
         odds_1_ah, odds_2_ah, _, line_ah = _get_odds_columns(_odds_asian)
