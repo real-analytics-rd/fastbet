@@ -108,20 +108,28 @@ def data_aggregator(
         # Lineup features.
         team_features = TeamSheet.get_latest(ra_team_id=team_id, date=game_date)
 
-        # Team name.
-        team_name = team_features.name
-        # Players and positions.
-        team_lineups_names = json.dumps(
-            {player.name: player.position for player in team_features.starting}
-        )
-        # Players ids.
-        team_lienups_ids = [player.opta_id for player in team_features.starting]
-        # Players slots.
-        team_lienups_slots = [player.slot for player in team_features.starting]
-        # Formation name.
-        formation_name = team_features.starting.first().formation
-        # Lineup timestamp.
-        lineup_time_stamp = team_features.received_at
+        if team_features is None:
+            team_name = None
+            team_lienups_ids = None
+            team_lineups_names = None
+            team_lienups_slots = None
+            formation_name = None
+            lineup_time_stamp = None
+        else:
+            # Team name.
+            team_name = team_features.name
+            # Players and positions.
+            team_lineups_names = json.dumps(
+                {player.name: player.position for player in team_features.starting}
+            )
+            # Players ids.
+            team_lienups_ids = [player.opta_id for player in team_features.starting]
+            # Players slots.
+            team_lienups_slots = [player.slot for player in team_features.starting]
+            # Formation name.
+            formation_name = team_features.starting.first().formation
+            # Lineup timestamp.
+            lineup_time_stamp = team_features.received_at
 
         return pd.DataFrame(
             {

@@ -8,6 +8,7 @@ import pandas as pd
 import mongoengine
 import datetime
 import logging
+from mongoengine.fields import ListField
 
 # %% ../../nbs/dataStrcuture/02_team_lineup.ipynb 5
 class Player(mongoengine.EmbeddedDocument):
@@ -92,6 +93,7 @@ class TeamSheet(mongoengine.Document):
     # Players.
     starting = mongoengine.EmbeddedDocumentListField(StartingPlayer)
     bench = mongoengine.EmbeddedDocumentListField(Player)
+    not_available = ListField(db_field="not_available", required=False)
 
     meta = {
         "db_alias": "features",
