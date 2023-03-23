@@ -110,7 +110,7 @@ class TeamSheet(mongoengine.Document):
         if date is None:
             date = datetime.datetime.now()
         return (
-            cls.objects(team_id=ra_team_id, received_at__lt=date)
+            cls.objects(team_id=ra_team_id, received_at__lte=date, source="opta")
             .order_by("-received_at")
             .first()
         )

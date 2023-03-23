@@ -5,6 +5,7 @@ __all__ = ['GameFeatures']
 
 # %% ../../nbs/dataStrcuture/01_game_features.ipynb 3
 import pandas as pd
+import datetime
 import mongoengine
 
 # %% ../../nbs/dataStrcuture/01_game_features.ipynb 5
