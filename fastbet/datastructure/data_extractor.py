@@ -62,6 +62,9 @@ def data_aggregator(
         # Extract all odds(1x2, Asian handicap and Total).
         all_game_odds = MarketOdds.get_all_odds(ra_game_id=game_id, date=game_date)
 
+        if all_game_odds is None:
+            return None
+
         # select each market
         _odds_1x2 = all_game_odds[all_game_odds.market_type == "1x2"]
         
@@ -74,8 +77,6 @@ def data_aggregator(
 
         # 1X2 odds.
         odds_1_1x2, odds_2_1x2, odds_x_1x2, _ = _get_odds_columns(_odds_1x2)
-        if odds_1_1x2 is None:
-            set_trace()
 
         # Asian Handicap.
         odds_1_ah, odds_2_ah, _, line_ah = _get_odds_columns(_odds_asian)
@@ -107,20 +108,28 @@ def data_aggregator(
         # Lineup features.
         team_features = TeamSheet.get_latest(ra_team_id=team_id, date=game_date)
 
-        # Team name.
-        team_name = team_features.name
-        # Players and positions.
-        team_lineups_names = json.dumps(
-            {player.name: player.position for player in team_features.starting}
-        )
-        # Players ids.
-        team_lienups_ids = [player.opta_id for player in team_features.starting]
-        # Players slots.
-        team_lienups_slots = [player.slot for player in team_features.starting]
-        # Formation name.
-        formation_name = team_features.starting.first().formation
-        # Lineup timestamp.
-        lineup_time_stamp = team_features.received_at
+        if team_features is None:
+            team_name = None
+            team_lienups_ids = None
+            team_lineups_names = None
+            team_lienups_slots = None
+            formation_name = None
+            lineup_time_stamp = None
+        else:
+            # Team name.
+            team_name = team_features.name
+            # Players and positions.
+            team_lineups_names = json.dumps(
+                {player.name: player.position for player in team_features.starting}
+            )
+            # Players ids.
+            team_lienups_ids = [player.opta_id for player in team_features.starting]
+            # Players slots.
+            team_lienups_slots = [player.slot for player in team_features.starting]
+            # Formation name.
+            formation_name = team_features.starting.first().formation
+            # Lineup timestamp.
+            lineup_time_stamp = team_features.received_at
 
         return pd.DataFrame(
             {

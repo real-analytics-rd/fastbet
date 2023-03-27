@@ -5,9 +5,7 @@ __all__ = ['MARKET_TYPES', 'MarketOdds']
 
 # %% ../../nbs/dataStrcuture/03_odds.ipynb 3
 import datetime
-import logging
 import re
-
 import mongoengine
 import pandas as pd
 
@@ -26,6 +24,7 @@ class MarketOdds(mongoengine.Document):
     competition_opta_id = mongoengine.IntField(
         db_field="competition_optaId", required=False
     )
+    
     season_id = mongoengine.IntField(db_field="seasonId", required=True)
     home_team_id = mongoengine.StringField(db_field="homeTeamId", required=True)
     away_team_id = mongoengine.StringField(db_field="awayTeamId", required=True)
@@ -47,7 +46,8 @@ class MarketOdds(mongoengine.Document):
     odds2 = mongoengine.FloatField(required=True, min_value=1)
     oddsX = mongoengine.FloatField(required=False, min_value=1)
     overround = mongoengine.FloatField(required=False)
-
+        
+        
     meta = {
         "db_alias": "features",
         "collection": "odds",
@@ -68,8 +68,7 @@ class MarketOdds(mongoengine.Document):
         odds_feats = cls.objects(game_id=ra_game_id, received_at__lt=date).order_by(
             "-received_at"
         )
-
-        if odds_feats is None:
+        if not odds_feats:
             return None
 
         return pd.concat(

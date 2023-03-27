@@ -8,6 +8,7 @@ import pandas as pd
 import mongoengine
 import datetime
 import logging
+from mongoengine.fields import ListField
 
 # %% ../../nbs/dataStrcuture/02_team_lineup.ipynb 5
 class Player(mongoengine.EmbeddedDocument):
@@ -92,6 +93,7 @@ class TeamSheet(mongoengine.Document):
     # Players.
     starting = mongoengine.EmbeddedDocumentListField(StartingPlayer)
     bench = mongoengine.EmbeddedDocumentListField(Player)
+    not_available = ListField(db_field="not_available", required=False)
 
     meta = {
         "db_alias": "features",
@@ -108,7 +110,7 @@ class TeamSheet(mongoengine.Document):
         if date is None:
             date = datetime.datetime.now()
         return (
-            cls.objects(team_id=ra_team_id, received_at__lt=date)
+            cls.objects(team_id=ra_team_id, received_at__lte=date, source="opta")
             .order_by("-received_at")
             .first()
         )
