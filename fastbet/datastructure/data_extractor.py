@@ -175,6 +175,7 @@ def data_aggregator(
             game_id=row["gameId"],
             game_date=row["gameDate"],
         )
+        
 
         ht_feats = _team_features(
             team_id=row["homeTeamId"], game_date=row["gameDate"]
